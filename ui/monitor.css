@@ -29,17 +29,24 @@ body {
 }
 
 .mark {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  fill: var(--accent);
 }
 
+/* 名前はアイコンにホバーしたときだけ出す。離れてから 5 秒は残し、ゆっくり消す */
 .title {
   font-size: 13px;
   font-weight: 600;
   margin-left: 6px;
   flex-grow: 1;
+  opacity: 0;
+  transition: opacity 1.2s ease 5s;
+}
+
+.mark:hover + .title {
+  opacity: 1;
+  transition: opacity 0.6s ease;
 }
 
 .panels {
