@@ -1,3 +1,5 @@
+![Wezen: PC の負荷を小さなグラフでひと目で](docs/images/hero.png)
+
 Wezen は、Windows のリソースの使用状況を小さなグラフで表示するアプリです。
 
 - CPU、Memory、I/O、GPU、Disk、Network の 6 項目を表示します

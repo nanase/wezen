@@ -42,6 +42,17 @@ cargo run --example gen_icons
 
 `src-tauri/icons/` と、設定画面で使う `ui/icon.png` が作り直されます。
 
+## README の画像
+
+`docs/images/hero.png` は、実際の画面（`ui/`）に見本データを流し込んで描き出しています。画面やアイコンを変えたら、作り直してください。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File docs/images/src/render.ps1
+```
+
+- 見本データは `docs/images/src/mock.js`、画像の構成は `docs/images/src/hero.html` にあります
+- Microsoft Edge をヘッドレスモードで使います。画面には何も表示しません
+
 ## インストーラー
 
 インストーラー（NSIS）を作るには、Tauri CLI を使います。
