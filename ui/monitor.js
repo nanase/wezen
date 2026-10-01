@@ -224,7 +224,8 @@ function render(now) {
       p.peak.classList.add("hidden");
       continue;
     }
-    renderPeak(p, { smoothed, scale, x0, step, from: end - span, to: end, last });
+    // 左上の今の値より最大が小さく見えないよう、まだ流れ込んでいない最新の値も数える
+    renderPeak(p, { smoothed, scale, x0, step, from: end - span, to: last.t, last });
   }
 }
 
