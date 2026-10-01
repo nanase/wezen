@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Wezen</title>
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="monitor.css">
+<script type="module" src="monitor.js"></script>
+</head>
+<body>
+<div class="frame" id="frame" data-tauri-drag-region="deep">
+  <header class="header" id="header">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 L14.2 9.8 L22.5 12 L14.2 14.2 L12 22.5 L9.8 14.2 L1.5 12 L9.8 9.8 Z"></path></svg>
+    <span class="title">Wezen</span>
+    <button type="button" class="icon-button" id="pin"></button>
+    <button type="button" class="icon-button" id="settings"></button>
+    <button type="button" class="icon-button" id="hide"></button>
+  </header>
+  <div class="panels" id="panels"></div>
+</div>
+<div class="resize n" data-dir="North"></div>
+<div class="resize s" data-dir="South"></div>
+<div class="resize w" data-dir="West"></div>
+<div class="resize e" data-dir="East"></div>
+<div class="resize nw" data-dir="NorthWest"></div>
+<div class="resize ne" data-dir="NorthEast"></div>
+<div class="resize sw" data-dir="SouthWest"></div>
+<div class="resize se" data-dir="SouthEast"></div>
+</body>
+</html>

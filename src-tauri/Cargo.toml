@@ -1,0 +1,33 @@
+[package]
+name = "wezen"
+version = "0.1.0"
+description = "Windows のリソースの使用状況を小さなグラフで表示する"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/nanase/wezen"
+publish = false
+
+[lib]
+name = "wezen_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+sys-locale = "0.3.2"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+[dev-dependencies]
+resvg = "0.45"

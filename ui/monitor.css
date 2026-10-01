@@ -1,0 +1,203 @@
+html,
+body {
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ウィンドウは透明にして、角の丸い枠を CSS で描く */
+.frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--monitor);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  flex-shrink: 0;
+}
+
+.mark {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: var(--accent);
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 6px;
+  flex-grow: 1;
+}
+
+.panels {
+  flex-grow: 1;
+  min-height: 0;
+  display: grid;
+  gap: 4px;
+  padding: 0 6px 6px;
+}
+
+.layout-strip .header {
+  display: none;
+}
+
+.layout-strip .panels {
+  padding: 4px;
+}
+
+.strip-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 100% 25%, 12.5% 100%;
+}
+
+.panel canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* グラフに重ねる文字は、パネルの色で縁取って読めるようにする */
+.overlay,
+.peak {
+  position: absolute;
+  pointer-events: none;
+  text-shadow: 0 0 2px var(--halo), 0 0 4px var(--halo), 0 0 6px var(--halo);
+}
+
+.overlay {
+  left: 9px;
+  top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.overlay .name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.overlay .line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  line-height: 15px;
+}
+
+.overlay .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.overlay .label {
+  color: var(--muted);
+}
+
+.layout-strip .overlay {
+  left: 7px;
+  top: 4px;
+  right: 4px;
+  gap: 0;
+}
+
+.layout-strip .overlay .name {
+  font-size: 10.5px;
+  line-height: 14px;
+  color: var(--muted);
+}
+
+.layout-strip .overlay .values {
+  display: flex;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.peak {
+  font-size: 11px;
+  color: var(--peak);
+  white-space: nowrap;
+}
+
+.peak.corner {
+  right: 6px;
+  top: 4px;
+}
+
+.peak.at {
+  transform: translateX(-50%);
+}
+
+/* 縁をつかんで大きさを変える。ウィンドウの枠がないので、透明な帯を置く */
+.resize {
+  position: fixed;
+  z-index: 10;
+}
+
+.resize.n,
+.resize.s {
+  left: 8px;
+  right: 8px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize.w,
+.resize.e {
+  top: 8px;
+  bottom: 8px;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize.n { top: 0; }
+.resize.s { bottom: 0; }
+.resize.w { left: 0; }
+.resize.e { right: 0; }
+
+.resize.nw,
+.resize.ne,
+.resize.sw,
+.resize.se {
+  width: 10px;
+  height: 10px;
+}
+
+.resize.nw { left: 0; top: 0; cursor: nwse-resize; }
+.resize.se { right: 0; bottom: 0; cursor: nwse-resize; }
+.resize.ne { right: 0; top: 0; cursor: nesw-resize; }
+.resize.sw { left: 0; bottom: 0; cursor: nesw-resize; }
