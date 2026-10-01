@@ -7,6 +7,8 @@ const $ = (id) => document.getElementById(id);
 const KEEP_MS = 3_720_000;
 /** なめらかに流すときの描き直しの間隔 */
 const GLIDE_FRAME_MS = 33;
+/** バイト量のグラフの上限を、新しい値へ近づける速さ（時定数） */
+const TOP_EASE_MS = 300;
 
 let settings = null;
 let samples = [];
@@ -17,6 +19,8 @@ let panels = [];
 let colors = {};
 let dirty = true;
 let lastDraw = 0;
+/** 上限がまだ動いている途中か。「更新ごと」のスクロールでも、動き終わるまでは描き直す */
+let easing = false;
 
 const pct = (key, digits) => (s) => G.percent(s?.[key], digits);
 const amount = (used, total) => (s) => `${G.bytes(s?.[used])} / ${G.bytes(s?.[total])}`;
@@ -131,7 +135,7 @@ function build() {
     const peak = h("div", { class: "peak hidden" });
     const overlay = h("div", { class: "overlay" });
     const el = h("div", { class: "panel" }, canvas, peak, overlay);
-    return { m, el, canvas, ctx: canvas.getContext("2d"), peak, overlay, w: 0, h: 0, peakKey: "" };
+    return { m, el, canvas, ctx: canvas.getContext("2d"), peak, overlay, w: 0, h: 0, peakKey: "", top: null, topAt: 0 };
   });
   const mark = strip ? [h("div", { class: "strip-mark" }, $("header").querySelector(".mark").cloneNode(true))] : [];
   box.replaceChildren(...mark, ...panels.map((p) => p.el));
@@ -179,8 +183,26 @@ function renderText() {
 
 // ---- グラフ ----
 
+/**
+ * バイト量のグラフの上限。大きな山が来ても急に縮尺を変えず、少しずつ近づける。
+ * 近づいている間は、山の頂上が一時的に上限を超えて、上の端で切れる。
+ */
+function easedTop(p, target, now) {
+  if (p.top == null) {
+    p.top = target;
+  } else {
+    const k = 1 - Math.exp(-Math.max(0, now - p.topAt) / TOP_EASE_MS);
+    p.top += (target - p.top) * k;
+    if (Math.abs(target - p.top) <= target * 0.002) p.top = target;
+  }
+  p.topAt = now;
+  if (p.top !== target) easing = true;
+  return p.top;
+}
+
 function render(now) {
   if (!samples.length) return;
+  easing = false;
   const last = samples[samples.length - 1];
   const span = settings.spanSecs * 1000;
   const strip = settings.layout === "strip";
@@ -200,7 +222,7 @@ function render(now) {
     const { x0, step, end } = f;
     const smoothed = p.m.keys.map((k) => G.line(times, columns[k], f, settings.smoothing));
     const log = p.m.bytes && settings.byteScale === "log";
-    const top = p.m.bytes ? G.bytesTop(smoothed) : 100;
+    const top = p.m.bytes ? easedTop(p, G.bytesTop(smoothed), now) : 100;
     const scale = G.scaler(top, log);
 
     G.draw(p.ctx, {
@@ -269,8 +291,8 @@ function renderPeak(p, { smoothed, scale, x0, step, from, to, last }) {
 function loop(now) {
   requestAnimationFrame(loop);
   if (!settings || document.hidden) return;
-  const glide = settings.scroll === "glide";
-  if (glide ? now - lastDraw < GLIDE_FRAME_MS : !dirty) return;
+  const busy = settings.scroll === "glide" || easing;
+  if (busy ? now - lastDraw < GLIDE_FRAME_MS : !dirty) return;
   lastDraw = now;
   dirty = false;
   render(Date.now());
