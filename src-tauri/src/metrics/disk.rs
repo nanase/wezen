@@ -1,0 +1,135 @@
+//! ディスクの読み書き量。物理ドライブごとの累計を `IOCTL_DISK_PERFORMANCE` で取り、前回と比べる。
+//!
+//! 性能カウンターの `\PhysicalDisk` は、登録が壊れていると引けない。
+//! ドライブに直接問い合わせれば、その影響を受けない。開くときに読み書きの権限は求めないので、管理者でなくても使える。
+
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Storage::FileSystem::{
+    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+};
+use windows_sys::Win32::System::Ioctl::{DISK_PERFORMANCE, IOCTL_DISK_PERFORMANCE};
+use windows_sys::Win32::System::IO::DeviceIoControl;
+
+/// 調べる物理ドライブの番号の上限
+const MAX_DRIVES: u32 = 32;
+/// USB ドライブの抜き差しに追いつくよう、ドライブを数え直す間隔
+const RESCAN: Duration = Duration::from_secs(30);
+
+struct Drive {
+    number: u32,
+    handle: HANDLE,
+}
+
+impl Drop for Drive {
+    fn drop(&mut self) {
+        unsafe {
+            CloseHandle(self.handle);
+        }
+    }
+}
+
+// ハンドルは計測のスレッドだけで使う
+unsafe impl Send for Drive {}
+
+/// ドライブ番号ごとの (読み取り, 書き込み) の累計
+type Totals = HashMap<u32, (u64, u64)>;
+
+#[derive(Default)]
+pub struct Disk {
+    drives: Vec<Drive>,
+    scanned: Option<Instant>,
+    last: Option<(Instant, Totals)>,
+}
+
+fn open(number: u32) -> Option<Drive> {
+    let path: Vec<u16> = format!(r"\\.\PhysicalDrive{number}")
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let handle = unsafe {
+        CreateFileW(
+            path.as_ptr(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            0,
+            std::ptr::null_mut(),
+        )
+    };
+    (handle != INVALID_HANDLE_VALUE).then_some(Drive { number, handle })
+}
+
+fn query(drive: &Drive) -> Option<(u64, u64)> {
+    let mut perf: DISK_PERFORMANCE = unsafe { std::mem::zeroed() };
+    let mut returned = 0u32;
+    let ok = unsafe {
+        DeviceIoControl(
+            drive.handle,
+            IOCTL_DISK_PERFORMANCE,
+            std::ptr::null(),
+            0,
+            (&mut perf as *mut DISK_PERFORMANCE).cast(),
+            std::mem::size_of::<DISK_PERFORMANCE>() as u32,
+            &mut returned,
+            std::ptr::null_mut(),
+        )
+    } != 0;
+    ok.then_some((
+        perf.BytesRead.max(0) as u64,
+        perf.BytesWritten.max(0) as u64,
+    ))
+}
+
+/// 前回と今回の両方にあるドライブだけで、増えた量を足す。累計が減ったドライブは数えない。
+fn delta(prev: &Totals, now: &Totals) -> (u64, u64) {
+    now.iter().fold((0, 0), |(r, w), (number, (rd, wr))| {
+        match prev.get(number) {
+            Some((prd, pwr)) => (
+                r + rd.checked_sub(*prd).unwrap_or(0),
+                w + wr.checked_sub(*pwr).unwrap_or(0),
+            ),
+            None => (r, w),
+        }
+    })
+}
+
+impl Disk {
+    /// (読み取り, 書き込み) を B/s で返す。
+    pub fn sample(&mut self) -> Option<(f64, f64)> {
+        if self.scanned.is_none_or(|t| t.elapsed() >= RESCAN) {
+            self.drives = (0..MAX_DRIVES).filter_map(open).collect();
+            self.scanned = Some(Instant::now());
+        }
+        let now: Totals = self
+            .drives
+            .iter()
+            .filter_map(|d| query(d).map(|v| (d.number, v)))
+            .collect();
+        if now.is_empty() {
+            return None;
+        }
+        let at = Instant::now();
+        let (prev_at, prev) = self.last.replace((at, now.clone()))?;
+        let secs = at.duration_since(prev_at).as_secs_f64();
+        if secs <= 0.0 {
+            return None;
+        }
+        let (r, w) = delta(&prev, &now);
+        Some((r as f64 / secs, w as f64 / secs))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drives_seen_twice_are_added() {
+        let prev = HashMap::from([(0, (1_000, 500)), (1, (10, 10))]);
+        let now = HashMap::from([(0, (1_600, 900)), (1, (15, 10)), (2, (99, 99))]);
+        assert_eq!(delta(&prev, &now), (605, 400));
+    }
+}

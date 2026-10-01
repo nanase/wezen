@@ -1,5 +1,6 @@
 //! 計測のループと履歴。設定した間隔ごとに値を取り、画面へ送る。
 
+use crate::config::Settings;
 use crate::state::AppState;
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -32,7 +33,7 @@ pub struct Sample {
 /// 値の取り出し元。
 pub trait Source: Send {
     /// 前回からの差分で求める値は、初回は None になる
-    fn sample(&mut self) -> Sample;
+    fn sample(&mut self, settings: &Settings) -> Sample;
 }
 
 /// 履歴を残す長さ。時間幅の最大（1 時間）に、ならしと流し込みの余白を足す
@@ -63,10 +64,7 @@ impl Sampler {
     fn push(&self, sample: Sample) {
         let mut history = self.lock();
         history.push_back(sample);
-        while history
-            .front()
-            .is_some_and(|s| sample.t - s.t > KEEP_MS)
-        {
+        while history.front().is_some_and(|s| sample.t - s.t > KEEP_MS) {
             history.pop_front();
         }
     }
@@ -101,21 +99,22 @@ pub fn start(app: &AppHandle, mut source: Box<dyn Source>) {
     let handle = app.clone();
     std::thread::spawn(move || loop {
         let started = Instant::now();
-        let mut sample = source.sample();
+        let settings = handle.state::<AppState>().settings();
+        let mut sample = source.sample(&settings);
         sample.t = now_ms();
         handle.state::<Sampler>().push(sample);
         let _ = handle.emit("sample", sample);
 
-        let interval = handle.state::<AppState>().lock().settings.interval_ms;
         handle
             .state::<Sampler>()
-            .sleep_until(started + Duration::from_millis(interval as u64));
+            .sleep_until(started + Duration::from_millis(settings.interval_ms as u64));
     });
 }
 
 /// 見本のデータ。画面の確認と、README の画像づくりに使う。
 pub mod mock {
     use super::{Sample, Source};
+    use crate::config::Settings;
 
     const K: f64 = 1024.0;
     const M: f64 = K * K;
@@ -162,7 +161,7 @@ pub mod mock {
     }
 
     impl Source for Mock {
-        fn sample(&mut self) -> Sample {
+        fn sample(&mut self, _settings: &Settings) -> Sample {
             let jitter = self.rand() - 0.5;
             self.cpu = (self.cpu + (15.0 - self.cpu) * 0.15 + jitter * 7.0).clamp(3.0, 100.0);
             let spike = if self.rand() < 0.04 {

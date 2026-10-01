@@ -94,10 +94,7 @@ fn restore_position(app: &AppHandle, win: &WebviewWindow) {
         let visible = monitors.iter().any(|m| {
             let area = m.work_area();
             let (left, top) = (area.position.x, area.position.y);
-            let (right, bottom) = (
-                left + area.size.width as i32,
-                top + area.size.height as i32,
-            );
+            let (right, bottom) = (left + area.size.width as i32, top + area.size.height as i32);
             (left..right - 40).contains(&x) && (top..bottom - 20).contains(&y)
         });
         if visible {

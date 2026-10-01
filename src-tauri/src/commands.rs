@@ -2,6 +2,7 @@
 
 use crate::config::Settings;
 use crate::i18n::Lang;
+use crate::metrics::gpu::Adapter;
 use crate::sampler::{Sample, Sampler};
 use crate::state::AppState;
 use crate::{tray, windows};
@@ -74,6 +75,11 @@ pub fn update_settings(
 #[tauri::command]
 pub fn get_history(sampler: State<'_, Sampler>) -> Vec<Sample> {
     sampler.history()
+}
+
+#[tauri::command]
+pub fn get_gpus() -> Vec<Adapter> {
+    crate::metrics::gpu::adapters()
 }
 
 #[tauri::command]

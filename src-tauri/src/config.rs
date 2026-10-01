@@ -340,7 +340,13 @@ mod tests {
     fn window_size_keeps_the_minimum() {
         let mut window = WindowState::default();
         window.set_size(Layout::Strip, Size::new(100.0, 10.0));
-        assert_eq!(window.size(Layout::Strip), WindowState::min_size(Layout::Strip));
-        assert_eq!(window.size(Layout::Stack), WindowState::default_size(Layout::Stack));
+        assert_eq!(
+            window.size(Layout::Strip),
+            WindowState::min_size(Layout::Strip)
+        );
+        assert_eq!(
+            window.size(Layout::Stack),
+            WindowState::default_size(Layout::Stack)
+        );
     }
 }

@@ -3,6 +3,7 @@
 mod commands;
 mod config;
 mod i18n;
+mod metrics;
 mod sampler;
 mod state;
 mod tray;
@@ -11,6 +12,15 @@ mod windows;
 use state::AppState;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_autostart::ManagerExt as _;
+
+/// 値の取り出し元。デバッグビルドでは `--mock` を付けると見本のデータにする。
+fn source() -> Box<dyn sampler::Source> {
+    #[cfg(debug_assertions)]
+    if std::env::args().any(|a| a == "--mock") {
+        return Box::new(sampler::mock::Mock::new());
+    }
+    Box::new(metrics::Collector::new())
+}
 
 pub fn run() {
     tauri::Builder::default()
@@ -36,12 +46,13 @@ pub fn run() {
             windows::apply_theme(handle);
             windows::setup_monitor(handle);
             tray::create(handle)?;
-            sampler::start(handle, Box::new(sampler::mock::Mock::new()));
+            sampler::start(handle, source());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::get_history,
+            commands::get_gpus,
             commands::update_settings,
             commands::hide_monitor,
             commands::open_settings,
