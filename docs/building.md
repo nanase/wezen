@@ -58,7 +58,8 @@ cargo tauri build
    - `src-tauri/Cargo.toml` の `version`
    - `src-tauri/tauri.conf.json` の `version`
 2. テストを通してから、配布用の Release ビルドを作ります
-3. `wezen.exe` だけを zip にまとめ、GitHub の Releases に載せます
+3. `wezen.exe` だけを `wezen-v<バージョン>-windows-x64.zip` にまとめ、GitHub の Releases に載せます
+   - exe には画面のファイルも入っているので、ほかのファイルは要りません
 
 配布用のビルドでは、上の「ビルド」の手順に 2 つ加えます。
 
