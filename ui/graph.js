@@ -7,7 +7,7 @@
 export const POINT_PX = 3;
 
 /** ならしの強さごとの σ（格子の点の数） */
-export const SIGMA = { off: 0, weak: 1, medium: 2, strong: 3.5 };
+export const SIGMA = { off: 0, weak: 0.6, medium: 1, strong: 2 };
 
 /** これより離れた値どうしは線でつながない（スリープなどで計測が止まっていた） */
 const MAX_GAP_MS = 125_000;
