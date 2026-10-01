@@ -112,7 +112,8 @@ pub fn start(app: &AppHandle, mut source: Box<dyn Source>) {
     });
 }
 
-/// 見本のデータ。画面の確認と、README の画像づくりに使う。
+/// 見本のデータ。画面の確認に使う。デバッグビルドにだけ入れる。
+#[cfg(debug_assertions)]
 pub mod mock {
     use super::{Sample, Source};
     use crate::config::Settings;
