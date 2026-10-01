@@ -13,7 +13,7 @@
 | 項目 | グラフ | 左上の文字 |
 |---|---|---|
 | CPU | 使用率 | 使用率 |
-| RAM | 使用率 | 使用率、使用量 / 全体 |
+| Memory | 使用率 | 使用率、使用量 / 上限 |
 | I/O | 読み取り + その他（R+O）、書き込み（W） | 毎秒の量 |
 | GPU | 使用率 | 使用率、専用メモリの使用量 / 全体 |
 | Disk | 読み取り（R）、書き込み（W） | 毎秒の量 |
@@ -56,12 +56,14 @@
 | 項目 | 取り出し元 |
 |---|---|
 | CPU | `GetSystemTimes`（Process Explorer と同じ考え方） |
-| RAM | `GlobalMemoryStatusEx`。使用量は全体から利用可能を引いた量 |
+| Memory | `GlobalMemoryStatusEx` のコミット済みの量 |
 | I/O | システム全体の I/O の累計（`NtQuerySystemInformation`） |
 | GPU | 性能カウンターの `GPU Engine` と `GPU Adapter Memory`、全体の量は DXGI |
 | Disk | 物理ドライブごとの `IOCTL_DISK_PERFORMANCE` |
 | Network | `GetIfTable2`。物理アダプターだけを数えます |
 
+- Memory は、物理メモリとページファイル（スワップ領域）を合わせた量です
+  - タスクマネージャーの「コミット済み」と同じ値で、上限は物理メモリとページファイルの合計です
 - GPU が複数あるときは、専用メモリが最も多いものを出します
   - 設定の「全般」で選び直せます
 - Network は、VPN などの仮想アダプターを数えません

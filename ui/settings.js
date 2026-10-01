@@ -26,7 +26,7 @@ const SECTIONS = [
 
 const ITEMS = [
   ["cpu", "CPU", "--c-cpu"],
-  ["ram", "RAM", "--c-ram"],
+  ["memory", "Memory", "--c-mem"],
   ["io", "I/O", "--c-read"],
   ["gpu", "GPU", "--c-gpu"],
   ["disk", "Disk", "--c-read"],

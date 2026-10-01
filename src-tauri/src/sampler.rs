@@ -17,8 +17,9 @@ pub struct Sample {
     /// 計った時刻（UNIX 時間のミリ秒）
     pub t: i64,
     pub cpu: Option<f64>,
-    pub ram_used: Option<f64>,
-    pub ram_total: Option<f64>,
+    /// メモリはコミット済みの量（物理メモリ + ページファイル）
+    pub mem_used: Option<f64>,
+    pub mem_total: Option<f64>,
     pub io_ro: Option<f64>,
     pub io_w: Option<f64>,
     pub gpu: Option<f64>,
@@ -123,7 +124,7 @@ pub mod mock {
     pub struct Mock {
         seed: u64,
         cpu: f64,
-        ram: f64,
+        mem: f64,
         gpu: f64,
         vram: f64,
     }
@@ -133,7 +134,7 @@ pub mod mock {
             Self {
                 seed: super::now_ms() as u64 | 1,
                 cpu: 15.0,
-                ram: 0.52,
+                mem: 0.52,
                 gpu: 14.0,
                 vram: 1.67 * G,
             }
@@ -170,7 +171,7 @@ pub mod mock {
                 0.0
             };
             let jitter = self.rand() - 0.5;
-            self.ram = (self.ram + jitter * 0.003).clamp(0.5, 0.54);
+            self.mem = (self.mem + jitter * 0.003).clamp(0.5, 0.54);
             let jitter = self.rand() - 0.5;
             self.gpu = (self.gpu + (14.0 - self.gpu) * 0.2 + jitter * 4.0).clamp(2.0, 100.0);
             let jitter = self.rand() - 0.5;
@@ -188,8 +189,8 @@ pub mod mock {
             Sample {
                 t: 0,
                 cpu: Some((self.cpu + spike).min(100.0)),
-                ram_used: Some(self.ram * 64.0 * G),
-                ram_total: Some(64.0 * G),
+                mem_used: Some(self.mem * 74.0 * G),
+                mem_total: Some(74.0 * G),
                 io_ro: Some(self.burst(3.0 * M, 0.08, 60.0 * M, 0.005, G)),
                 io_w: Some(self.burst(M, 0.06, 25.0 * M, 0.003, 300.0 * M)),
                 gpu: Some(self.gpu),

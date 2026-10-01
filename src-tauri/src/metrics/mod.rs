@@ -3,7 +3,7 @@
 //! | 項目 | 取り出し元 |
 //! |---|---|
 //! | CPU | `GetSystemTimes` |
-//! | RAM | `GlobalMemoryStatusEx` |
+//! | Memory | `GlobalMemoryStatusEx` のコミット済みの量（物理メモリ + ページファイル） |
 //! | I/O | `NtQuerySystemInformation` の I/O の累計（R+O は Read と Other の和） |
 //! | GPU | `\GPU Engine(*)`、`\GPU Adapter Memory(*)`、DXGI |
 //! | Disk | 物理ドライブごとの `IOCTL_DISK_PERFORMANCE` |
@@ -67,8 +67,8 @@ impl Source for Collector {
             ..Sample::default()
         };
         if let Some((used, total)) = memory::sample() {
-            s.ram_used = Some(used);
-            s.ram_total = Some(total);
+            s.mem_used = Some(used);
+            s.mem_total = Some(total);
         }
         if let Some((ro, w)) = self.io.sample() {
             s.io_ro = Some(ro);

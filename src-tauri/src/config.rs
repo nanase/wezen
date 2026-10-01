@@ -73,7 +73,9 @@ pub enum PeakPos {
 #[serde(rename_all = "camelCase", default)]
 pub struct Items {
     pub cpu: bool,
-    pub ram: bool,
+    /// 以前は物理メモリだけの「ram」だった
+    #[serde(alias = "ram")]
+    pub memory: bool,
     pub io: bool,
     pub gpu: bool,
     pub disk: bool,
@@ -84,7 +86,7 @@ impl Default for Items {
     fn default() -> Self {
         Self {
             cpu: true,
-            ram: true,
+            memory: true,
             io: true,
             gpu: true,
             disk: true,
@@ -95,10 +97,17 @@ impl Default for Items {
 
 impl Items {
     pub fn count(&self) -> usize {
-        [self.cpu, self.ram, self.io, self.gpu, self.disk, self.net]
-            .iter()
-            .filter(|&&on| on)
-            .count()
+        [
+            self.cpu,
+            self.memory,
+            self.io,
+            self.gpu,
+            self.disk,
+            self.net,
+        ]
+        .iter()
+        .filter(|&&on| on)
+        .count()
     }
 }
 
@@ -325,6 +334,12 @@ mod tests {
     }
 
     #[test]
+    fn old_ram_item_becomes_memory() {
+        let items: Items = serde_json::from_str(r#"{"ram":false}"#).unwrap();
+        assert!(!items.memory);
+    }
+
+    #[test]
     fn values_out_of_range_are_pulled_back() {
         let settings = Settings {
             interval_ms: 100,
@@ -332,7 +347,7 @@ mod tests {
             fill_opacity: 5.0,
             items: Items {
                 cpu: false,
-                ram: false,
+                memory: false,
                 io: false,
                 gpu: false,
                 disk: false,

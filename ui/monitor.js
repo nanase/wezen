@@ -32,13 +32,13 @@ const METRICS = [
     peak: (v) => G.percent(v, 2),
   },
   {
-    id: "ram",
-    name: "RAM",
-    keys: ["ram"],
-    colors: ["--c-ram"],
-    text: [pct("ram", 0), amount("ramUsed", "ramTotal")],
-    short: [pct("ram", 0), (s) => G.bytes(s?.ramUsed)],
-    peak: (v, s) => G.bytes((v / 100) * (s?.ramTotal ?? 0)),
+    id: "memory",
+    name: "Memory",
+    keys: ["mem"],
+    colors: ["--c-mem"],
+    text: [pct("mem", 0), amount("memUsed", "memTotal")],
+    short: [pct("mem", 0), (s) => G.bytes(s?.memUsed)],
+    peak: (v, s) => G.bytes((v / 100) * (s?.memTotal ?? 0)),
   },
   { id: "io", name: "I/O", keys: ["ioRo", "ioW"], labels: ["R+O", "W"] },
   {
@@ -62,10 +62,10 @@ for (const m of METRICS) {
   }
 }
 
-/** RAM はグラフを使用率で描くので、届いた値から求めておく */
+/** メモリはグラフを使用率で描くので、届いた値から求めておく */
 function normalize(s) {
-  const ram = s.ramUsed != null && s.ramTotal ? (s.ramUsed / s.ramTotal) * 100 : null;
-  return { ...s, ram };
+  const mem = s.memUsed != null && s.memTotal ? (s.memUsed / s.memTotal) * 100 : null;
+  return { ...s, mem };
 }
 
 function addSample(s) {
@@ -86,7 +86,7 @@ function addSample(s) {
 function readColors() {
   const style = getComputedStyle(document.documentElement);
   colors = {};
-  for (const name of ["--c-cpu", "--c-ram", "--c-gpu", "--c-read", "--c-write"]) {
+  for (const name of ["--c-cpu", "--c-mem", "--c-gpu", "--c-read", "--c-write"]) {
     colors[name] = style.getPropertyValue(name).trim();
   }
   dirty = true;

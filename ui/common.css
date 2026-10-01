@@ -21,7 +21,7 @@
   --halo: #262626;
   --peak: #e8b36a;
   --c-cpu: #3cc75f;
-  --c-ram: #c77dff;
+  --c-mem: #c77dff;
   --c-gpu: #ffd60a;
   --c-read: #4cc2ff;
   --c-write: #ff9f0a;
@@ -47,7 +47,7 @@
   --halo: #ffffff;
   --peak: #9d5d00;
   --c-cpu: #1b7a3a;
-  --c-ram: #8a3fc2;
+  --c-mem: #8a3fc2;
   --c-gpu: #8a6d00;
   --c-read: #005fb8;
   --c-write: #b25000;
