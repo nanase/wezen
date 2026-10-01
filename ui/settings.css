@@ -1,0 +1,575 @@
+html,
+body {
+  height: 100%;
+  background: var(--surface);
+  user-select: none;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 8px 16px;
+  border-right: 1px solid var(--stroke);
+  min-height: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 4px;
+}
+
+.brand img {
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.brand-version {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+}
+
+.nav-items button {
+  all: unset;
+  padding: 9px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  position: relative;
+}
+
+.nav-items button:hover {
+  background: var(--hover);
+}
+
+.nav-items button[aria-current="page"] {
+  background: var(--hover);
+  font-weight: 600;
+}
+
+.nav-items button[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.nav-items button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.button {
+  font-size: 14px;
+  height: 36px;
+  padding: 0 16px;
+  margin: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--stroke-strong);
+  background: var(--button);
+  cursor: pointer;
+}
+
+.button:hover {
+  filter: brightness(1.08);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.content {
+  overflow-y: auto;
+  padding: 24px 32px 40px;
+}
+
+h1 {
+  margin: 0 0 20px;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+h2 {
+  margin: 24px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.row .text {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.row .label {
+  font-size: 14px;
+}
+
+.row .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.row.off .text {
+  opacity: 0.5;
+}
+
+select {
+  font-size: 14px;
+  background: var(--input);
+  border: 1px solid var(--stroke-strong);
+  border-radius: 4px;
+  padding: 5px 10px;
+  min-height: 32px;
+  max-width: 320px;
+}
+
+select:focus-visible,
+.num:focus-visible {
+  outline: none;
+  border-bottom: 2px solid var(--accent);
+}
+
+/* Windows のトグルスイッチ */
+.switch {
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--muted);
+  transition: left 0.15s ease;
+}
+
+.switch:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch:checked::after {
+  left: 23px;
+  background: var(--on-accent);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 6px;
+  background: var(--input);
+  border: 1px solid var(--stroke-strong);
+  flex-shrink: 0;
+}
+
+.segmented button {
+  all: unset;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.segmented button:hover {
+  background: var(--hover);
+}
+
+.segmented button[aria-checked="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.segmented button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.segmented button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.slider input[type="range"] {
+  width: 160px;
+  accent-color: var(--accent);
+}
+
+.slider .value {
+  width: 40px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  width: 46px;
+  font-size: 14px;
+  text-align: right;
+  background: var(--input);
+  border: 1px solid var(--stroke-strong);
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+
+.num::-webkit-inner-spin-button,
+.num::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* レイアウトのカード */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.card {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--stroke);
+  background: var(--card);
+  cursor: pointer;
+}
+
+.card:hover {
+  background: var(--hover);
+}
+
+.card[aria-checked="true"] {
+  border: 2px solid var(--accent);
+  padding: 11px;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card .label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mini-wrap {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.mini {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 3px;
+  background: var(--monitor);
+  border: 1px solid var(--stroke);
+}
+
+.mini-stack {
+  width: 44px;
+  height: 62px;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.mini-grid {
+  width: 84px;
+  height: 52px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.mini-strip {
+  width: 150px;
+  height: 18px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.cell {
+  display: flex;
+  align-items: flex-end;
+  background: var(--panel);
+  border-radius: 1.5px;
+  overflow: hidden;
+}
+
+.cell i {
+  display: block;
+  width: 100%;
+  height: 55%;
+  opacity: 0.55;
+}
+
+/* 表示する項目 */
+.items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--hover);
+}
+
+.item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.item .box {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.item[aria-checked="true"] .box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.item .box svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* グラフのプレビュー */
+.chart-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend i {
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.legend .lag {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview {
+  position: relative;
+  height: 112px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  overflow: hidden;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 100% 25%, 12.5% 100%;
+}
+
+.preview canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.preview .overlay {
+  position: absolute;
+  left: 9px;
+  top: 5px;
+  pointer-events: none;
+  text-shadow: 0 0 2px var(--halo), 0 0 4px var(--halo), 0 0 6px var(--halo);
+}
+
+.preview .name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.preview .value {
+  font-size: 11.5px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview .peak {
+  position: absolute;
+  font-size: 11px;
+  color: var(--peak);
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 2px var(--halo), 0 0 4px var(--halo), 0 0 6px var(--halo);
+}
+
+.preview .peak.corner {
+  right: 6px;
+  top: 4px;
+}
+
+.preview .peak.at {
+  transform: translateX(-50%);
+}
+
+/* 情報 */
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.about-name {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.about-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.kv .key {
+  color: var(--muted);
+}
+
+a.link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}

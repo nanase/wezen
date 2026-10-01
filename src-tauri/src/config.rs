@@ -94,8 +94,11 @@ impl Default for Items {
 }
 
 impl Items {
-    fn any(&self) -> bool {
-        self.cpu || self.ram || self.io || self.gpu || self.disk || self.net
+    pub fn count(&self) -> usize {
+        [self.cpu, self.ram, self.io, self.gpu, self.disk, self.net]
+            .iter()
+            .filter(|&&on| on)
+            .count()
     }
 }
 
@@ -168,7 +171,7 @@ impl Settings {
         } else {
             0.35
         };
-        if !self.items.any() {
+        if self.items.count() == 0 {
             self.items = Items::default();
         }
         self
@@ -233,6 +236,21 @@ impl WindowState {
             Layout::Grid => self.grid,
             Layout::Strip => self.strip,
         }
+    }
+
+    /// 本体のグラフ 1 枚の幅（CSS px）の見積もり。設定画面で、遅れの秒数を出すのに使う。
+    pub fn graph_width(&self, layout: Layout, items: usize) -> f64 {
+        // 枠 1px、パネルの外側の余白 6px、パネルどうしの間 4px（ui/monitor.css）
+        let inner = self.size(layout).width - 2.0;
+        let n = items.max(1) as f64;
+        let width = match layout {
+            Layout::Stack => inner - 12.0,
+            Layout::Grid => (inner - 12.0 - 4.0) / 2.0,
+            // 帯は左に 22px の印を置き、外側の余白は 4px
+            Layout::Strip => (inner - 8.0 - 22.0 - 4.0 * n) / n,
+        };
+        // パネルの枠の 1px ずつを引く
+        (width - 2.0).max(40.0)
     }
 
     pub fn set_size(&mut self, layout: Layout, size: Size) {

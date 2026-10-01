@@ -24,7 +24,14 @@ fn source() -> Box<dyn sampler::Source> {
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // 動作確認用。デバッグビルドでは 2 つ目の起動に --debug-settings を付けると設定画面を開く
+            #[cfg(debug_assertions)]
+            if args.iter().any(|a| a == "--debug-settings") {
+                windows::open_settings(app);
+                return;
+            }
+            let _ = args;
             windows::show_monitor(app);
         }))
         .plugin(tauri_plugin_autostart::init(
@@ -56,6 +63,7 @@ pub fn run() {
             commands::update_settings,
             commands::hide_monitor,
             commands::open_settings,
+            commands::open_repository,
             commands::quit,
         ])
         .build(tauri::generate_context!())

@@ -84,6 +84,40 @@ export function smooth(vals, smoothing) {
   });
 }
 
+/**
+ * 描く範囲と格子を決める。`width` はグラフの幅（CSS px）。
+ *
+ * 格子は時刻の `dt` の倍数に置く。描くたびに格子がずれると、区間の最大値が揺れてちらつくため。
+ * 右端の時刻 `end` は格子の点の間に来るので、そのぶん `x0` で左へずらして描く。
+ */
+export function frame({ width, spanMs, smoothing, rightEdge, glide, intervalMs, now, lastT }) {
+  const count = Math.max(16, Math.round(width / POINT_PX));
+  const step = width / (count - 1);
+  const dt = spanMs / (count - 1);
+  const r = radius(smoothing);
+  // 「遅らせて出す」では、右端より先の値がそろうまで待つ
+  const lag = rightEdge === "delayed" ? r : 0;
+  // なめらかに流すときは 1 間隔ぶん遅らせ、次の値が届くまでのあいだを流して埋める
+  const end = (glide ? Math.min(now - intervalMs, lastT) : lastT) - lag * dt;
+  const gridEnd = Math.ceil(end / dt) * dt;
+  return {
+    count,
+    step,
+    dt,
+    r,
+    end,
+    lagMs: lag * dt,
+    start: gridEnd - (count + r) * dt,
+    total: count + 1 + 2 * r,
+    x0: width - ((end - (gridEnd - count * dt)) / dt) * step,
+  };
+}
+
+/** 1 系列を格子に並べ直してならし、見える範囲の `count + 1` 点を返す。 */
+export function line(times, values, f, smoothing) {
+  return smooth(resample(times, values, f.start, f.dt, f.total), smoothing).slice(f.r, f.r + f.count + 1);
+}
+
 /** 値を 0〜1 の高さにする。`log` は対数目盛り（1 kB を 1 とした log10）。 */
 export function scaler(top, log) {
   if (!log) return (v) => Math.max(0, Math.min(1, v / top));

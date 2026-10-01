@@ -183,29 +183,25 @@ function render(now) {
   if (!samples.length) return;
   const last = samples[samples.length - 1];
   const span = settings.spanSecs * 1000;
-  const r = G.radius(settings.smoothing);
-  const lag = settings.rightEdge === "delayed" ? r : 0;
-  const glide = settings.scroll === "glide";
   const strip = settings.layout === "strip";
 
   for (const p of panels) {
     if (!p.w || !p.h) continue;
-    const count = Math.max(16, Math.round(p.w / G.POINT_PX));
-    const step = p.w / (count - 1);
-    const dt = span / (count - 1);
-    // 右端の時刻。なめらかに流すときは 1 間隔ぶん遅らせ、次の値が届くまでのあいだを流して埋める
-    const end = (glide ? Math.min(now - settings.intervalMs, last.t) : last.t) - lag * dt;
-    const gridEnd = Math.ceil(end / dt) * dt;
-    const total = count + 1 + 2 * r;
-    const start = gridEnd - (count + r) * dt;
-
-    const smoothed = p.m.keys.map((k) =>
-      G.smooth(G.resample(times, columns[k], start, dt, total), settings.smoothing).slice(r, r + count + 1),
-    );
+    const f = G.frame({
+      width: p.w,
+      spanMs: span,
+      smoothing: settings.smoothing,
+      rightEdge: settings.rightEdge,
+      glide: settings.scroll === "glide",
+      intervalMs: settings.intervalMs,
+      now,
+      lastT: last.t,
+    });
+    const { x0, step, end } = f;
+    const smoothed = p.m.keys.map((k) => G.line(times, columns[k], f, settings.smoothing));
     const log = p.m.bytes && settings.byteScale === "log";
     const top = p.m.bytes ? G.bytesTop(smoothed) : 100;
     const scale = G.scaler(top, log);
-    const x0 = p.w - ((end - (gridEnd - count * dt)) / dt) * step;
 
     G.draw(p.ctx, {
       width: p.w,

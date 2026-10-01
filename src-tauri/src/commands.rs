@@ -9,6 +9,7 @@ use crate::{tray, windows};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_autostart::ManagerExt as _;
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,14 +17,22 @@ pub struct SettingsView {
     settings: Settings,
     lang: Lang,
     version: &'static str,
+    repository: &'static str,
+    /// 本体のグラフ 1 枚の幅（CSS px）
+    graph_width: f64,
 }
 
 fn view(state: &AppState) -> SettingsView {
-    let settings = state.settings();
+    let config = state.lock().clone();
+    let settings = config.settings;
     SettingsView {
         lang: Lang::resolve(settings.language),
+        graph_width: config
+            .window
+            .graph_width(settings.layout, settings.items.count()),
         settings,
         version: env!("CARGO_PKG_VERSION"),
+        repository: env!("CARGO_PKG_REPOSITORY"),
     }
 }
 
@@ -90,6 +99,16 @@ pub fn hide_monitor(app: AppHandle) {
 #[tauri::command]
 pub fn open_settings(app: AppHandle) {
     windows::open_settings(&app);
+}
+
+#[tauri::command]
+pub fn open_repository(app: AppHandle) {
+    if let Err(err) = app
+        .opener()
+        .open_url(env!("CARGO_PKG_REPOSITORY"), None::<&str>)
+    {
+        eprintln!("リポジトリを開けませんでした: {err}");
+    }
 }
 
 #[tauri::command]
