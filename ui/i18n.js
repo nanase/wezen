@@ -208,6 +208,9 @@ export const ICONS = {
   check: "M5 12l5 5L20 7",
 };
 
+// WebView2 の既定の右クリックメニュー（戻る、印刷など）は Wezen では使わない
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 export const tauri = window.__TAURI__;
 export const invoke = (cmd, args) => tauri.core.invoke(cmd, args);
 export const listen = (event, fn) => tauri.event.listen(event, fn);
