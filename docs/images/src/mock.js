@@ -20,6 +20,7 @@
     theme: params.get("theme") ?? "dark",
     layout: params.get("layout") ?? "stack",
     items: { cpu: true, memory: true, io: true, gpu: true, disk: true, net: true },
+    itemOrder: ["cpu", "memory", "io", "gpu", "disk", "net"],
     smoothing: "weak",
     rightEdge: "now",
     scroll: "glide",

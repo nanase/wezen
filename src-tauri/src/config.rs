@@ -96,6 +96,9 @@ impl Default for Items {
 }
 
 impl Items {
+    /// 既定の並び
+    pub const IDS: [&'static str; 6] = ["cpu", "memory", "io", "gpu", "disk", "net"];
+
     pub fn count(&self) -> usize {
         [
             self.cpu,
@@ -125,6 +128,8 @@ pub struct Settings {
     pub theme: Theme,
     pub layout: Layout,
     pub items: Items,
+    /// 表示する項目の並び。`Items::IDS` の値を並べる
+    pub item_order: Vec<String>,
     pub smoothing: Smoothing,
     pub right_edge: RightEdge,
     pub scroll: Scroll,
@@ -147,6 +152,7 @@ impl Default for Settings {
             theme: Theme::System,
             layout: Layout::Stack,
             items: Items::default(),
+            item_order: Items::IDS.map(String::from).to_vec(),
             smoothing: Smoothing::Weak,
             right_edge: RightEdge::Now,
             scroll: Scroll::Glide,
@@ -183,6 +189,14 @@ impl Settings {
         if self.items.count() == 0 {
             self.items = Items::default();
         }
+        // 知らない項目と重複を除き、抜けた項目は既定の並びで後ろへ足す
+        let mut order: Vec<String> = Vec::with_capacity(Items::IDS.len());
+        for id in self.item_order.iter().map(String::as_str).chain(Items::IDS) {
+            if Items::IDS.contains(&id) && !order.iter().any(|o| o == id) {
+                order.push(id.to_owned());
+            }
+        }
+        self.item_order = order;
         self
     }
 }
@@ -367,6 +381,19 @@ mod tests {
         }
         .normalized();
         assert_eq!(settings.interval_ms, 60_000);
+    }
+
+    #[test]
+    fn item_order_is_completed() {
+        let settings = Settings {
+            item_order: ["net", "future", "cpu", "net"].map(String::from).to_vec(),
+            ..Settings::default()
+        }
+        .normalized();
+        assert_eq!(
+            settings.item_order,
+            ["net", "cpu", "memory", "io", "gpu", "disk"].map(String::from)
+        );
     }
 
     #[test]

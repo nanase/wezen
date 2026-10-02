@@ -146,8 +146,100 @@ function renderGeneral(s) {
 
 // ---- 表示 ----
 
+/** 設定の並びにそろえた項目 */
+const ordered = (s) => s.itemOrder.map((id) => ITEMS.find(([i]) => i === id)).filter(Boolean);
+
+/**
+ * つまみをドラッグして行を並べ替える。行は指の位置に合わせてその場で入れ替え、離したときに知らせる。
+ *
+ * 行を付け替えるとつまみのポインターのキャプチャーが外れるため、動かさない一覧の側でキャプチャーする。
+ */
+function sortable(list, onDrop) {
+  const ids = () => [...list.children].map((el) => el.dataset.id);
+  list.addEventListener("pointerdown", (e) => {
+    const grip = e.target.closest(".grip");
+    if (!grip || e.button !== 0) return;
+    e.preventDefault();
+    list.setPointerCapture(e.pointerId);
+    const row = grip.closest(".item-row");
+    const before = ids().join();
+    row.classList.add("dragging");
+    const move = (ev) => {
+      const others = [...list.children].filter((el) => el !== row);
+      const i = others.filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.top + r.height / 2 < ev.clientY;
+      }).length;
+      const next = others[i] ?? null;
+      if (row.nextElementSibling !== next) list.insertBefore(row, next);
+    };
+    const end = () => {
+      list.removeEventListener("pointermove", move);
+      list.removeEventListener("lostpointercapture", end);
+      row.classList.remove("dragging");
+      if (ids().join() !== before) onDrop(ids());
+    };
+    list.addEventListener("pointermove", move);
+    // 離したときも、取り消されたときも、キャプチャーが外れる
+    list.addEventListener("lostpointercapture", end);
+  });
+}
+
+function itemList(s) {
+  const items = ordered(s);
+  const shown = items.filter(([id]) => s.items[id]).length;
+  const list = h(
+    "div",
+    { class: "items" },
+    items.map(([id, name, color], index) => {
+      const on = s.items[id];
+      // 最後に残った 1 項目は外せない
+      const last = on && shown === 1;
+      return h(
+        "div",
+        { class: "item-row", "data-id": id },
+        h(
+          "button",
+          {
+            type: "button",
+            class: "grip",
+            "aria-label": t("moveItem", name),
+            "aria-keyshortcuts": "ArrowUp ArrowDown",
+            onkeydown: (e) => {
+              const to = index + ({ ArrowUp: -1, ArrowDown: 1 }[e.key] ?? 0);
+              if (to === index || to < 0 || to >= items.length) return;
+              e.preventDefault();
+              const order = items.map(([i]) => i);
+              order.splice(to, 0, ...order.splice(index, 1));
+              // 作り直したあとも、続けて動かせるようつまみにフォーカスを戻す
+              save({ itemOrder: order }).then(() => $("content").querySelector(`.item-row[data-id="${id}"] .grip`)?.focus());
+            },
+          },
+          icon(ICONS.grip, 16, 2.8),
+        ),
+        h(
+          "button",
+          {
+            type: "button",
+            role: "checkbox",
+            class: "item",
+            "aria-checked": String(on),
+            disabled: last,
+            onclick: () => save({ items: { ...s.items, [id]: !on } }),
+          },
+          h("span", { class: "box" }, on && icon(ICONS.check, 12, 2.4)),
+          h("span", { class: "dot", style: `background: var(${color})` }),
+          h("span", {}, name),
+        ),
+      );
+    }),
+  );
+  sortable(list, (order) => save({ itemOrder: order }));
+  return list;
+}
+
 function renderAppearance(s) {
-  const shown = ITEMS.filter(([id]) => s.items[id]);
+  const shown = ordered(s).filter(([id]) => s.items[id]);
   const cells = () => shown.map(([, , color]) => h("div", { class: "cell" }, h("i", { style: `background: var(${color})` })));
   const layouts = [
     ["stack", "layoutStack"],
@@ -186,29 +278,7 @@ function renderAppearance(s) {
       ),
     ),
     h("h2", {}, t("items")),
-    h(
-      "div",
-      { class: "items" },
-      ITEMS.map(([id, name, color]) => {
-        const on = s.items[id];
-        // 最後に残った 1 項目は外せない
-        const last = on && shown.length === 1;
-        return h(
-          "button",
-          {
-            type: "button",
-            role: "checkbox",
-            class: "item",
-            "aria-checked": String(on),
-            disabled: last,
-            onclick: () => save({ items: { ...s.items, [id]: !on } }),
-          },
-          h("span", { class: "box" }, on && icon(ICONS.check, 12, 2.4)),
-          h("span", { class: "dot", style: `background: var(${color})` }),
-          h("span", {}, name),
-        );
-      }),
-    ),
+    itemList(s),
   ];
 }
 

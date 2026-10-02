@@ -116,7 +116,9 @@ const observer = new ResizeObserver((entries) => {
 function build() {
   const strip = settings.layout === "strip";
   document.body.className = `layout-${settings.layout}`;
-  const list = METRICS.filter((m) => settings.items[m.id]);
+  const list = settings.itemOrder
+    .map((id) => METRICS.find((m) => m.id === id))
+    .filter((m) => m && settings.items[m.id]);
   const box = $("panels");
   box.style.gridTemplateColumns = "";
   box.style.gridTemplateRows = "";
@@ -320,7 +322,10 @@ function apply(view) {
   applyTheme(settings.theme);
   renderHeader();
   const rebuild =
-    !prev || prev.layout !== settings.layout || JSON.stringify(prev.items) !== JSON.stringify(settings.items);
+    !prev ||
+    prev.layout !== settings.layout ||
+    JSON.stringify(prev.items) !== JSON.stringify(settings.items) ||
+    prev.itemOrder.join() !== settings.itemOrder.join();
   if (rebuild) build();
   else renderText();
   dirty = true;

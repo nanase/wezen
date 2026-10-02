@@ -380,20 +380,67 @@ select:focus-visible,
 
 /* 表示する項目 */
 .items {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 4px;
+}
+
+.item-row {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.item-row.dragging {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.grip {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  border-radius: 5px 0 0 5px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.grip:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.item-row.dragging .grip {
+  cursor: grabbing;
+}
+
+.grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.grip svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
 }
 
 .item {
   all: unset;
   display: flex;
   align-items: center;
+  flex-grow: 1;
   gap: 10px;
-  padding: 12px 14px;
-  border-radius: 6px;
-  background: var(--card);
-  border: 1px solid var(--stroke);
+  padding: 11px 14px 11px 4px;
+  border-radius: 0 5px 5px 0;
   font-size: 14px;
   cursor: pointer;
 }
@@ -409,6 +456,7 @@ select:focus-visible,
 
 .item:focus-visible {
   outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .item .box {

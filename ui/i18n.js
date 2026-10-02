@@ -35,6 +35,7 @@ const ja = {
   layoutGrid: "2 列",
   layoutStrip: "帯",
   items: "表示する項目",
+  moveItem: (name) => `${name} を移動`,
   previewRaw: "元のデータ",
   previewLine: "表示される線",
   realtime: "リアルタイム",
@@ -104,6 +105,7 @@ const en = {
   layoutGrid: "2 columns",
   layoutStrip: "Strip",
   items: "Items to show",
+  moveItem: (name) => `Move ${name}`,
   previewRaw: "Raw data",
   previewLine: "Drawn line",
   realtime: "Real time",
@@ -206,6 +208,7 @@ export const ICONS = {
   ],
   close: ["M18 6 6 18", "m6 6 12 12"],
   check: "M5 12l5 5L20 7",
+  grip: ["M9 6h.01", "M15 6h.01", "M9 12h.01", "M15 12h.01", "M9 18h.01", "M15 18h.01"],
 };
 
 // WebView2 の既定の右クリックメニュー（戻る、印刷など）は Wezen では使わない
