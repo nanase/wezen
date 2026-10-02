@@ -20,6 +20,7 @@ pub fn setup_monitor(app: &AppHandle) {
     };
     apply_monitor_settings(app, true);
     restore_position(app, &win);
+    disable_browser_keys(&win);
 
     let handle = app.clone();
     win.on_window_event(move |event| match event {
@@ -207,6 +208,7 @@ pub fn open_settings(app: &AppHandle) {
                 .build();
         match result {
             Ok(win) => {
+                disable_browser_keys(&win);
                 match &monitor {
                     Some(monitor) => center_on(&win, monitor),
                     None => {
@@ -219,6 +221,32 @@ pub fn open_settings(app: &AppHandle) {
             Err(err) => eprintln!("設定画面を開けませんでした: {err}"),
         }
     });
+}
+
+/// WebView2 のブラウザー向けのキー操作（F5 の再読み込み、Ctrl+P の印刷、Ctrl+F の検索など）を止める。
+/// デバッグビルドでは、F12 で開発者ツールを開けるよう残す
+fn disable_browser_keys(win: &WebviewWindow) {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let result = win.with_webview(|webview| {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+        use windows::core::Interface;
+        let result = unsafe {
+            webview
+                .controller()
+                .CoreWebView2()
+                .and_then(|core| core.Settings())
+                .and_then(|settings| settings.cast::<ICoreWebView2Settings3>())
+                .and_then(|settings| settings.SetAreBrowserAcceleratorKeysEnabled(false))
+        };
+        if let Err(err) = result {
+            eprintln!("WebView2 のキー操作を止められませんでした: {err}");
+        }
+    });
+    if let Err(err) = result {
+        eprintln!("WebView2 のキー操作を止められませんでした: {err}");
+    }
 }
 
 /// ウィンドウをディスプレイの作業領域の中央に置く。
