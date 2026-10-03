@@ -1,6 +1,6 @@
 [package]
 name = "wezen"
-version = "0.1.0"
+version = "0.2.0"
 description = "Windows のリソースの使用状況を小さなグラフで表示する"
 edition = "2021"
 license = "MIT"
