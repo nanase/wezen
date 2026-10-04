@@ -91,8 +91,9 @@ pub fn get_gpus() -> Vec<Adapter> {
     crate::metrics::gpu::adapters()
 }
 
+/// 呼んだ画面のウィンドウを閉じるので、メインスレッドでなく非同期で受ける
 #[tauri::command]
-pub fn hide_monitor(app: AppHandle) {
+pub async fn hide_monitor(app: AppHandle) {
     windows::hide_monitor(&app);
 }
 

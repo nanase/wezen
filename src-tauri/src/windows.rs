@@ -2,6 +2,7 @@
 
 use crate::config::{Layout, WindowState};
 use crate::state::{self, AppState};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -26,7 +27,10 @@ const BROWSER_ARGS: &str =
 /// 最小化したウィンドウの位置。Windows はこの座標へ移したことにする
 const MINIMIZED_POS: i32 = -30_000;
 
-/// 起動時に本体ウィンドウを作り、保存した位置と大きさ、設定を当てて表示する。
+/// 本体ウィンドウを作り、保存した位置と大きさ、設定を当てて表示する。
+///
+/// 隠すときはウィンドウを閉じ、出すときに作り直す。閉じれば WebView2 のプロセスも終わり、
+/// 隠している間のメモリをほぼ返せる。値の履歴は Rust 側で持っているので、作り直しても続きから描ける
 pub fn create_monitor(app: &AppHandle) -> tauri::Result<()> {
     let size = WindowState::default_size(Layout::Stack);
     let win = WebviewWindowBuilder::new(app, MONITOR, WebviewUrl::App("monitor.html".into()))
@@ -48,6 +52,7 @@ pub fn create_monitor(app: &AppHandle) -> tauri::Result<()> {
     disable_browser_keys(&win);
 
     let handle = app.clone();
+    let minimized = AtomicBool::new(false);
     win.on_window_event(move |event| match event {
         WindowEvent::Moved(pos) => {
             if pos.x <= MINIMIZED_POS || pos.y <= MINIMIZED_POS {
@@ -60,7 +65,12 @@ pub fn create_monitor(app: &AppHandle) -> tauri::Result<()> {
             let Some(win) = handle.get_webview_window(MONITOR) else {
                 return;
             };
-            if size.width == 0 || win.is_minimized().unwrap_or(false) {
+            // 最小化しただけでは WebView2 は描き続けるので、見えていないことを伝える
+            let now_minimized = size.width == 0 || win.is_minimized().unwrap_or(false);
+            if minimized.swap(now_minimized, Ordering::Relaxed) != now_minimized {
+                set_webview_visible(&win, !now_minimized);
+            }
+            if now_minimized {
                 return;
             }
             let scale = win.scale_factor().unwrap_or(1.0);
@@ -78,11 +88,6 @@ pub fn create_monitor(app: &AppHandle) -> tauri::Result<()> {
                 );
             }
             state::save_soon(&handle);
-        }
-        // 閉じるボタンでは隠すだけにする。終了はトレイのメニューか設定画面から
-        WindowEvent::CloseRequested { api, .. } => {
-            api.prevent_close();
-            hide_monitor(&handle);
         }
         _ => {}
     });
@@ -158,21 +163,29 @@ pub fn show_monitor(app: &AppHandle) {
         let _ = win.unminimize();
         let _ = win.show();
         let _ = win.set_focus();
+        return;
     }
+    // メニューのイベントの中（メインスレッド）でウィンドウを作ると固まるので、別のスレッドで作る
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(err) = create_monitor(&handle) {
+            eprintln!("本体ウィンドウを開けませんでした: {err}");
+        }
+    });
 }
 
+/// 本体ウィンドウを閉じる。終了はしない（トレイのメニューか設定画面から）。
 pub fn hide_monitor(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(MONITOR) {
-        let _ = win.hide();
+        let _ = win.destroy();
     }
 }
 
 /// トレイアイコンのクリック。表示中なら隠し、隠れていれば表示する。
 pub fn toggle_monitor(app: &AppHandle) {
-    let Some(win) = app.get_webview_window(MONITOR) else {
-        return;
-    };
-    let shown = win.is_visible().unwrap_or(false) && !win.is_minimized().unwrap_or(false);
+    let shown = app
+        .get_webview_window(MONITOR)
+        .is_some_and(|win| !win.is_minimized().unwrap_or(false));
     if shown {
         hide_monitor(app);
     } else {
@@ -281,6 +294,16 @@ fn disable_browser_keys(win: &WebviewWindow) {
                 .cast::<ICoreWebView2Settings3>()?
                 .SetAreBrowserAcceleratorKeysEnabled(false)
         },
+    );
+}
+
+/// ウィンドウが見えなくなったこと、また見えるようになったことを WebView2 に伝える。
+/// 見えていない間は、画面の描画（requestAnimationFrame）が止まる
+fn set_webview_visible(win: &WebviewWindow, visible: bool) {
+    with_controller(
+        win,
+        "WebView2 に表示の状態を伝えられませんでした",
+        move |controller| unsafe { controller.SetIsVisible(visible) },
     );
 }
 

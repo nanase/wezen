@@ -68,7 +68,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("Wezen を起動できませんでした")
         .run(|_app, event| {
-            // 設定画面を閉じても動き続ける。終了はトレイのメニューか設定画面から
+            // ウィンドウをすべて閉じても動き続ける。終了はトレイのメニューか設定画面から
             if let RunEvent::ExitRequested {
                 api, code: None, ..
             } = event
