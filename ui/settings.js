@@ -1,21 +1,22 @@
-import { ICONS, applyTheme, h, icon, invoke, listen, setLang, t } from "./i18n.js";
+import { setLang, t } from "./i18n.js";
 import * as G from "./graph.js";
+import { ICONS, applyTheme, fitCanvas, h, icon, invoke, listen } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 
-/** 手元に残す長さ。プレビューは時間幅の分だけあれば足りる */
+/** 手元に残す長さ。本体と同じ */
 const KEEP_MS = 3_720_000;
-const FRAME_MS = 33;
 
 let view = null;
 let gpus = [];
 let section = "general";
 
-// プレビューに使う CPU の値
-let times = [];
-let cpu = [];
+/** プレビューに使う CPU の値 */
+const series = new G.Series(["cpu"], KEEP_MS);
 let preview = null;
 let lastDraw = 0;
+/** 値が届いたか、設定が変わったか。「更新ごと」のスクロールでは、このときだけ描き直す */
+let dirty = true;
 
 const SECTIONS = [
   ["general", "navGeneral"],
@@ -286,21 +287,8 @@ function renderAppearance(s) {
 
 /** 本体のグラフが、右端の値を待つために遅れる秒数 */
 function lagSeconds(s) {
-  const f = frameFor(s, view.graphWidth, Date.now(), Date.now());
-  return Math.max(1, Math.round(G.frame({ ...f, rightEdge: "delayed" }).lagMs / 1000));
-}
-
-function frameFor(s, width, now, lastT) {
-  return {
-    width,
-    spanMs: s.spanSecs * 1000,
-    smoothing: s.smoothing,
-    rightEdge: s.rightEdge,
-    glide: s.scroll === "glide",
-    intervalMs: s.intervalMs,
-    now,
-    lastT,
-  };
+  const args = G.frameArgs(s, view.graphWidth, Date.now(), Date.now());
+  return Math.max(1, Math.round(G.frame({ ...args, rightEdge: "delayed" }).lagMs / 1000));
 }
 
 function renderGraph(s) {
@@ -316,14 +304,11 @@ function renderGraph(s) {
     h("div", { class: "overlay" }, h("div", { class: "name" }, "CPU"), value),
   );
   preview = { canvas, ctx: canvas.getContext("2d"), value, peak, lag, box, w: 0, h: 0 };
+  // 画面を作り直したあとに、古い監視が新しいプレビューを書き換えないよう、このプレビューを持っておく
+  const graph = preview;
   new ResizeObserver(([entry]) => {
-    const { width, height } = entry.contentRect;
-    const dpr = window.devicePixelRatio || 1;
-    preview.w = width;
-    preview.h = height;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    preview.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fitCanvas(graph, entry);
+    dirty = true;
   }).observe(box);
 
   const smoothingOn = s.smoothing !== "off";
@@ -332,6 +317,7 @@ function renderGraph(s) {
   fill.addEventListener("input", () => {
     // 動かしている間はプレビューだけ変え、離したときに保存する
     view.settings.fillOpacity = Number(fill.value);
+    dirty = true;
     fillText.textContent = `${Math.round(fill.value * 100)}%`;
   });
   fill.addEventListener("change", () => save({ fillOpacity: Number(fill.value) }));
@@ -438,10 +424,12 @@ function renderGraph(s) {
  */
 function drawPreview(now) {
   const p = preview;
+  const { times, cols } = series;
+  const cpu = cols.cpu;
   if (!p || !p.w || !times.length) return;
   const s = view.settings;
   const lastT = times[times.length - 1];
-  const f = G.frame(frameFor(s, view.graphWidth, now, lastT));
+  const f = G.frame(G.frameArgs(s, view.graphWidth, now, lastT));
   const ratio = p.w / view.graphWidth;
   const step = f.step * ratio;
   const x0 = f.x0 * ratio;
@@ -478,42 +466,36 @@ function drawPreview(now) {
 
   p.value.textContent = G.percent(cpu[cpu.length - 1], 2);
   p.lag.textContent = f.lagMs ? t("lagged", Math.max(1, Math.round(f.lagMs / 1000))) : t("realtime");
-  drawPreviewPeak(vals, x0, step, from, lastT);
-}
 
-function drawPreviewPeak(vals, x0, step, from, to) {
-  const p = preview;
-  const s = view.settings;
-  let raw = null;
-  for (let i = times.length - 1; i >= 0 && times[i] > from; i--) {
-    if (times[i] <= to && cpu[i] != null && (raw == null || cpu[i] > raw)) raw = cpu[i];
-  }
-  let best = null;
-  let at = 0;
-  vals.forEach((v, i) => {
-    if (v != null && (best == null || v >= best)) {
-      best = v;
-      at = i;
-    }
-  });
-  if (!s.showPeak || raw == null || best == null) {
-    p.peak.classList.add("hidden");
+  const raw = G.maxIn(times, [cpu], from, lastT);
+  const top = G.summit([vals]);
+  if (!s.showPeak || raw == null || top.value == null) {
+    G.hidePeak(p.peak);
     return;
   }
-  const x = x0 + at * step;
-  const corner = s.peakPos === "corner" || x < p.w * 0.35;
-  p.peak.textContent = corner ? `${t("peakMax")} ${G.percent(raw, 2)}` : G.percent(raw, 2);
-  p.peak.classList.remove("hidden");
-  p.peak.classList.toggle("corner", corner);
-  p.peak.classList.toggle("at", !corner);
-  p.peak.style.left = corner ? "" : `${Math.min(p.w * 0.91, x)}px`;
-  p.peak.style.top = corner ? "" : `${Math.max(1, (1 - best / 100) * (p.h - 1) - 14)}px`;
+  G.placePeak(p.peak, {
+    x: x0 + top.index * step,
+    y: 1 + (1 - top.value / 100) * (p.h - 1),
+    w: p.w,
+    corner: s.peakPos === "corner",
+    value: G.percent(raw, 2),
+    maxLabel: t("peakMax"),
+  });
+}
+
+/** 描き直しの間隔。本体と同じく、目に見えて流れるときだけ描く */
+function frameMs() {
+  const s = view.settings;
+  if (s.scroll !== "glide") return Infinity;
+  return G.glideFrameMs(preview.w, s.spanSecs * 1000, window.devicePixelRatio || 1);
 }
 
 function loop(now) {
   requestAnimationFrame(loop);
-  if (section !== "graph" || document.hidden || now - lastDraw < FRAME_MS) return;
+  if (!preview || document.hidden) return;
+  if (!dirty && now - lastDraw < frameMs()) return;
   lastDraw = now;
+  dirty = false;
   drawPreview(Date.now());
 }
 
@@ -595,6 +577,7 @@ function render() {
   applyTheme(s.theme);
   renderNav();
   preview = null;
+  dirty = true;
   const content = {
     general: renderGeneral,
     appearance: renderAppearance,
@@ -604,20 +587,17 @@ function render() {
   $("content").replaceChildren(...content);
 }
 
-function addSample(sample) {
-  times.push(sample.t);
-  cpu.push(sample.cpu ?? null);
-  const cut = sample.t - KEEP_MS;
-  let drop = 0;
-  while (drop < times.length && times[drop] < cut) drop++;
-  if (drop) {
-    times = times.slice(drop);
-    cpu = cpu.slice(drop);
-  }
-}
-
 async function init() {
-  await listen("sample", (e) => addSample(e.payload));
+  // 履歴を取る前に届いた値も落とさないよう、先に受け始める
+  let early = [];
+  await listen("sample", (e) => {
+    if (early) {
+      early.push(e.payload);
+      return;
+    }
+    series.push(e.payload);
+    dirty = true;
+  });
   await listen("settings-changed", (e) => {
     view = e.payload;
     render();
@@ -625,12 +605,8 @@ async function init() {
   view = await invoke("get_settings");
   gpus = await invoke("get_gpus");
   const history = await invoke("get_history");
-  const lastT = times[times.length - 1] ?? Infinity;
-  const early = { times, cpu };
-  times = [];
-  cpu = [];
-  for (const sample of history) if (sample.t < lastT) addSample(sample);
-  early.times.forEach((t0, i) => addSample({ t: t0, cpu: early.cpu[i] }));
+  for (const sample of [...history, ...early]) series.push(sample);
+  early = null;
   render();
   requestAnimationFrame(loop);
 }

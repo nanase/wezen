@@ -1,20 +1,15 @@
-import { ICONS, applyTheme, h, icon, invoke, listen, setLang, t, tauri } from "./i18n.js";
+import { setLang, t } from "./i18n.js";
 import * as G from "./graph.js";
+import { ICONS, applyTheme, fitCanvas, h, icon, invoke, listen, tauri } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 
 /** 手元に残す長さ。Rust 側の履歴と同じ */
 const KEEP_MS = 3_720_000;
-/** なめらかに流すときの描き直しの間隔 */
-const GLIDE_FRAME_MS = 33;
 /** バイト量のグラフの上限を、新しい値へ近づける速さ（時定数） */
 const TOP_EASE_MS = 300;
 
 let settings = null;
-let samples = [];
-let times = [];
-/** グラフにする値を、項目ごとの配列にしたもの。描くたびに作り直さないよう、届いたときに足す */
-let columns = {};
 let panels = [];
 let colors = {};
 let dirty = true;
@@ -66,25 +61,12 @@ for (const m of METRICS) {
   }
 }
 
-/** メモリはグラフを使用率で描くので、届いた値から求めておく */
-function normalize(s) {
-  const mem = s.memUsed != null && s.memTotal ? (s.memUsed / s.memTotal) * 100 : null;
-  return { ...s, mem };
-}
+const series = new G.Series(METRICS.flatMap((m) => m.keys), KEEP_MS);
 
+/** メモリはグラフを使用率で描くので、届いた値から求めておく */
 function addSample(s) {
-  const n = normalize(s);
-  samples.push(n);
-  times.push(n.t);
-  for (const m of METRICS) for (const k of m.keys) (columns[k] ??= []).push(n[k]);
-  const cut = n.t - KEEP_MS;
-  let drop = 0;
-  while (drop < times.length && times[drop] < cut) drop++;
-  if (drop) {
-    samples = samples.slice(drop);
-    times = times.slice(drop);
-    for (const k of Object.keys(columns)) columns[k] = columns[k].slice(drop);
-  }
+  const mem = s.memUsed != null && s.memTotal ? (s.memUsed / s.memTotal) * 100 : null;
+  series.push({ ...s, mem });
 }
 
 function readColors() {
@@ -101,14 +83,7 @@ function readColors() {
 const observer = new ResizeObserver((entries) => {
   for (const entry of entries) {
     const panel = panels.find((p) => p.el === entry.target);
-    if (!panel) continue;
-    const { width, height } = entry.contentRect;
-    const dpr = window.devicePixelRatio || 1;
-    panel.w = width;
-    panel.h = height;
-    panel.canvas.width = Math.round(width * dpr);
-    panel.canvas.height = Math.round(height * dpr);
-    panel.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (panel) fitCanvas(panel, entry);
   }
   dirty = true;
 });
@@ -137,7 +112,7 @@ function build() {
     const peak = h("div", { class: "peak hidden" });
     const overlay = h("div", { class: "overlay" });
     const el = h("div", { class: "panel" }, canvas, peak, overlay);
-    return { m, el, canvas, ctx: canvas.getContext("2d"), peak, overlay, w: 0, h: 0, peakKey: "", top: null, topAt: 0 };
+    return { m, el, canvas, ctx: canvas.getContext("2d"), peak, overlay, w: 0, h: 0, top: null, topAt: 0 };
   });
   const mark = strip ? [h("div", { class: "strip-mark" }, $("header").querySelector(".mark").cloneNode(true))] : [];
   box.replaceChildren(...mark, ...panels.map((p) => p.el));
@@ -161,7 +136,7 @@ function shortValues(m, s) {
 }
 
 function renderText() {
-  const s = samples[samples.length - 1];
+  const s = series.latest;
   const strip = settings.layout === "strip";
   for (const p of panels) {
     const name = h("div", { class: "name" }, p.m.name);
@@ -203,26 +178,17 @@ function easedTop(p, target, now) {
 }
 
 function render(now) {
-  if (!samples.length) return;
+  const last = series.latest;
+  if (!last) return;
   easing = false;
-  const last = samples[samples.length - 1];
   const span = settings.spanSecs * 1000;
   const strip = settings.layout === "strip";
 
   for (const p of panels) {
     if (!p.w || !p.h) continue;
-    const f = G.frame({
-      width: p.w,
-      spanMs: span,
-      smoothing: settings.smoothing,
-      rightEdge: settings.rightEdge,
-      glide: settings.scroll === "glide",
-      intervalMs: settings.intervalMs,
-      now,
-      lastT: last.t,
-    });
+    const f = G.frame(G.frameArgs(settings, p.w, now, last.t));
     const { x0, step, end } = f;
-    const smoothed = p.m.keys.map((k) => G.line(times, columns[k], f, settings.smoothing));
+    const smoothed = p.m.keys.map((k) => G.line(series.times, series.cols[k], f, settings.smoothing));
     const log = p.m.bytes && settings.byteScale === "log";
     const top = p.m.bytes ? easedTop(p, G.bytesTop(smoothed), now) : 100;
     const scale = G.scaler(top, log);
@@ -241,7 +207,7 @@ function render(now) {
     });
 
     if (strip || !settings.showPeak) {
-      p.peak.classList.add("hidden");
+      G.hidePeak(p.peak);
       continue;
     }
     // 左上の今の値より最大が小さく見えないよう、まだ流れ込んでいない最新の値も数える
@@ -251,50 +217,34 @@ function render(now) {
 
 /** ピーク。数値はならす前の最大値、位置はならした山の頂上にする。 */
 function renderPeak(p, { smoothed, scale, x0, step, from, to, last }) {
-  let raw = null;
-  for (let i = samples.length - 1; i >= 0 && times[i] > from; i--) {
-    if (times[i] > to) continue;
-    for (const k of p.m.keys) {
-      const v = samples[i][k];
-      if (v != null && (raw == null || v > raw)) raw = v;
-    }
-  }
-  let best = null;
-  let at = 0;
-  for (const vals of smoothed) {
-    vals.forEach((v, i) => {
-      if (v != null && (best == null || v >= best)) {
-        best = v;
-        at = i;
-      }
-    });
-  }
-  if (raw == null || best == null) {
-    p.peak.classList.add("hidden");
+  const raw = G.maxIn(series.times, p.m.keys.map((k) => series.cols[k]), from, to);
+  const top = G.summit(smoothed);
+  if (raw == null || top.value == null) {
+    G.hidePeak(p.peak);
     return;
   }
-  const x = x0 + at * step;
-  const y = 1 + (1 - scale(best)) * (p.h - 1);
-  // 山が左上の文字の下にあるときは、重ならないよう右上へ移す
-  const corner = settings.peakPos === "corner" || x < p.w * 0.35;
-  const text = corner ? `${t("peakMax")} ${p.m.peak(raw, last)}` : p.m.peak(raw, last);
-  const left = Math.min(p.w * 0.91, x);
-  const key = `${text}|${corner}|${corner ? "" : `${left.toFixed(1)},${Math.max(1, y - 15).toFixed(1)}`}`;
-  if (key === p.peakKey) return;
-  p.peakKey = key;
-  p.peak.textContent = text;
-  p.peak.classList.remove("hidden");
-  p.peak.classList.toggle("corner", corner);
-  p.peak.classList.toggle("at", !corner);
-  p.peak.style.left = corner ? "" : `${left}px`;
-  p.peak.style.top = corner ? "" : `${Math.max(1, y - 15)}px`;
+  G.placePeak(p.peak, {
+    x: x0 + top.index * step,
+    y: 1 + (1 - scale(top.value)) * (p.h - 1),
+    w: p.w,
+    corner: settings.peakPos === "corner",
+    value: p.m.peak(raw, last),
+    maxLabel: t("peakMax"),
+  });
+}
+
+/** 描き直しの間隔。なめらかに流すときは、いちばん幅の広いグラフが目に見えて流れる間隔にする */
+function frameMs() {
+  if (easing) return G.MIN_FRAME_MS;
+  if (settings.scroll !== "glide") return Infinity;
+  const width = Math.max(0, ...panels.map((p) => p.w));
+  return G.glideFrameMs(width, settings.spanSecs * 1000, window.devicePixelRatio || 1);
 }
 
 function loop(now) {
   requestAnimationFrame(loop);
   if (!settings || document.hidden) return;
-  const busy = settings.scroll === "glide" || easing;
-  if (busy ? now - lastDraw < GLIDE_FRAME_MS : !dirty) return;
+  if (!dirty && now - lastDraw < frameMs()) return;
   lastDraw = now;
   dirty = false;
   render(Date.now());
@@ -367,9 +317,7 @@ async function init() {
 
   const view = await invoke("get_settings");
   const history = await invoke("get_history");
-  for (const s of history) addSample(s);
-  const lastT = times[times.length - 1] ?? 0;
-  for (const s of early) if (s.t > lastT) addSample(s);
+  for (const s of [...history, ...early]) addSample(s);
   apply(view);
   readColors();
   requestAnimationFrame(loop);

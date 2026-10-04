@@ -12,6 +12,12 @@ export const SIGMA = { off: 0, weak: 0.6, medium: 1, strong: 2 };
 /** これより離れた値どうしは線でつながない（スリープなどで計測が止まっていた） */
 const MAX_GAP_MS = 125_000;
 
+/** なめらかに流すときに、1 回の描き直しで流す量（画面の画素） */
+const GLIDE_STEP_PX = 0.25;
+
+/** 描き直しの間隔の下限（約 30 fps） */
+export const MIN_FRAME_MS = 33;
+
 /** バイト量のグラフの上限の下限。静かなときに小さな揺れが画面いっぱいに広がらないようにする */
 const MIN_BYTES_TOP = 64 * 1024;
 
@@ -85,6 +91,52 @@ export function smooth(vals, smoothing) {
 }
 
 /**
+ * 時刻と、項目ごとの値の列。`keepMs` より古い値は捨てる。
+ *
+ * 描くたびに値を集め直さないよう、届いたときに列へ足しておく。
+ */
+export class Series {
+  constructor(keys, keepMs) {
+    this.keys = keys;
+    this.keepMs = keepMs;
+    this.times = [];
+    this.cols = Object.fromEntries(keys.map((k) => [k, []]));
+    /** 最後に足した値 */
+    this.latest = null;
+  }
+
+  /** 値を足す。履歴とイベントで同じ値が 2 回届くことがあるので、最後の時刻より前のものは捨てる */
+  push(sample) {
+    const last = this.times[this.times.length - 1];
+    if (last != null && sample.t <= last) return;
+    this.latest = sample;
+    this.times.push(sample.t);
+    for (const k of this.keys) this.cols[k].push(sample[k] ?? null);
+    const cut = sample.t - this.keepMs;
+    let drop = 0;
+    while (drop < this.times.length && this.times[drop] < cut) drop++;
+    if (drop) {
+      this.times.splice(0, drop);
+      for (const k of this.keys) this.cols[k].splice(0, drop);
+    }
+  }
+}
+
+/** 描く範囲を決める `frame` の引数を、設定から作る。 */
+export function frameArgs(settings, width, now, lastT) {
+  return {
+    width,
+    spanMs: settings.spanSecs * 1000,
+    smoothing: settings.smoothing,
+    rightEdge: settings.rightEdge,
+    glide: settings.scroll === "glide",
+    intervalMs: settings.intervalMs,
+    now,
+    lastT,
+  };
+}
+
+/**
  * 描く範囲と格子を決める。`width` はグラフの幅（CSS px）。
  *
  * 格子は時刻の `dt` の倍数に置く。描くたびに格子がずれると、区間の最大値が揺れてちらつくため。
@@ -116,6 +168,68 @@ export function frame({ width, spanMs, smoothing, rightEdge, glide, intervalMs, 
 /** 1 系列を格子に並べ直してならし、見える範囲の `count + 1` 点を返す。 */
 export function line(times, values, f, smoothing) {
   return smooth(resample(times, values, f.start, f.dt, f.total), smoothing).slice(f.r, f.r + f.count + 1);
+}
+
+/**
+ * なめらかに流すときの描き直しの間隔。グラフが `GLIDE_STEP_PX`（画面の画素）ずつ流れるたびに描く。
+ * 毎フレーム描くと、ゆっくり流れるグラフでも CPU と GPU を使い続けるため。
+ */
+export function glideFrameMs(width, spanMs, dpr) {
+  const pxPerMs = (width * dpr) / spanMs;
+  return Math.max(MIN_FRAME_MS, GLIDE_STEP_PX / pxPerMs);
+}
+
+/** `from` より後、`to` までに届いた値のうち、`cols` のすべての列を通した最大。 */
+export function maxIn(times, cols, from, to) {
+  let max = null;
+  for (let i = times.length - 1; i >= 0 && times[i] > from; i--) {
+    if (times[i] > to) continue;
+    for (const vals of cols) {
+      const v = vals[i];
+      if (v != null && (max == null || v > max)) max = v;
+    }
+  }
+  return max;
+}
+
+/** 線のうち最も高い点の値と、その位置。同じ高さなら右の点にする。 */
+export function summit(lines) {
+  let value = null;
+  let index = 0;
+  for (const vals of lines) {
+    vals.forEach((v, i) => {
+      if (v != null && (value == null || v >= value)) {
+        value = v;
+        index = i;
+      }
+    });
+  }
+  return { value, index };
+}
+
+/**
+ * ピークの文字を出す。`x`、`y` は山の頂上（CSS px）、`w` はグラフの幅。
+ * 山が左上の文字の下にあるときと、`corner` が true のときは、右上に「最大 …」の形で出す。
+ */
+export function placePeak(el, { x, y, w, corner, value, maxLabel }) {
+  corner ||= x < w * 0.35;
+  const text = corner ? `${maxLabel} ${value}` : value;
+  const left = corner ? "" : `${Math.min(w * 0.91, x)}px`;
+  const top = corner ? "" : `${Math.max(1, y - 15)}px`;
+  const key = `${text}|${left}|${top}`;
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.textContent = text;
+  el.classList.remove("hidden");
+  el.classList.toggle("corner", corner);
+  el.classList.toggle("at", !corner);
+  el.style.left = left;
+  el.style.top = top;
+}
+
+export function hidePeak(el) {
+  el.classList.add("hidden");
+  delete el.dataset.key;
 }
 
 /** 値を 0〜1 の高さにする。`log` は対数目盛り（1 kB を 1 とした log10）。 */
