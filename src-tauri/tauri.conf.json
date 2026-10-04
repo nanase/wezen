@@ -8,23 +8,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "label": "monitor",
-        "title": "Wezen",
-        "url": "monitor.html",
-        "width": 340,
-        "height": 440,
-        "visible": false,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "resizable": true,
-        "maximizable": false,
-        "skipTaskbar": true,
-        "alwaysOnTop": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }

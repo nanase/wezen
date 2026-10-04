@@ -1,23 +1,48 @@
 //! 本体と設定の各ウィンドウ。
 
-use crate::config::WindowState;
+use crate::config::{Layout, WindowState};
 use crate::state::{self, AppState};
 use tauri::{
     AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    ICoreWebView2Controller, ICoreWebView2Settings3,
+};
+use windows::core::Interface;
 
 pub const MONITOR: &str = "monitor";
 pub const SETTINGS: &str = "settings";
 
+/// WebView2 に渡す引数。WebView2 はウィンドウどうしで 1 つの環境を共有するので、どのウィンドウにも同じものを渡す
+/// （違うと 2 枚目を作れない）。
+///
+/// - `--disable-features=…`: wry の既定値。引数を渡すと wry は既定値を付けないので、ここで足す
+/// - `--disable-gpu`: GPU のプロセスが確保するメモリ（約 85 MB）を減らす。描くのは小さなグラフだけなので、
+///   CPU で描いても負荷は変わらなかった
+const BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu";
+
 /// 最小化したウィンドウの位置。Windows はこの座標へ移したことにする
 const MINIMIZED_POS: i32 = -30_000;
 
-/// 起動時に、保存した位置と大きさ、設定を本体ウィンドウに当てて表示する。
-pub fn setup_monitor(app: &AppHandle) {
-    let Some(win) = app.get_webview_window(MONITOR) else {
-        return;
-    };
+/// 起動時に本体ウィンドウを作り、保存した位置と大きさ、設定を当てて表示する。
+pub fn create_monitor(app: &AppHandle) -> tauri::Result<()> {
+    let size = WindowState::default_size(Layout::Stack);
+    let win = WebviewWindowBuilder::new(app, MONITOR, WebviewUrl::App("monitor.html".into()))
+        .title("Wezen")
+        .theme(window_theme(app))
+        .inner_size(size.width, size.height)
+        .visible(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .resizable(true)
+        .maximizable(false)
+        .skip_taskbar(true)
+        .always_on_top(true)
+        .additional_browser_args(BROWSER_ARGS)
+        .build()?;
     apply_monitor_settings(app, true);
     restore_position(app, &win);
     disable_browser_keys(&win);
@@ -62,6 +87,7 @@ pub fn setup_monitor(app: &AppHandle) {
         _ => {}
     });
     let _ = win.show();
+    Ok(())
 }
 
 /// 設定を本体ウィンドウに当てる。`resize` が true なら、今のレイアウトで覚えている大きさにする。
@@ -201,6 +227,7 @@ pub fn open_settings(app: &AppHandle) {
         let result =
             WebviewWindowBuilder::new(&handle, SETTINGS, WebviewUrl::App("settings.html".into()))
                 .title(title)
+                .additional_browser_args(BROWSER_ARGS)
                 .inner_size(800.0, 600.0)
                 .min_inner_size(640.0, 480.0)
                 .theme(theme)
@@ -223,30 +250,38 @@ pub fn open_settings(app: &AppHandle) {
     });
 }
 
+/// WebView2 を直接操作する。失敗したら `what` を添えて知らせる。
+fn with_controller<F>(win: &WebviewWindow, what: &'static str, f: F)
+where
+    F: FnOnce(ICoreWebView2Controller) -> windows::core::Result<()> + Send + 'static,
+{
+    let result = win.with_webview(move |webview| {
+        if let Err(err) = f(webview.controller()) {
+            eprintln!("{what}: {err}");
+        }
+    });
+    if let Err(err) = result {
+        eprintln!("{what}: {err}");
+    }
+}
+
 /// WebView2 のブラウザー向けのキー操作（F5 の再読み込み、Ctrl+P の印刷、Ctrl+F の検索など）を止める。
 /// デバッグビルドでは、F12 で開発者ツールを開けるよう残す
 fn disable_browser_keys(win: &WebviewWindow) {
     if cfg!(debug_assertions) {
         return;
     }
-    let result = win.with_webview(|webview| {
-        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
-        use windows::core::Interface;
-        let result = unsafe {
-            webview
-                .controller()
-                .CoreWebView2()
-                .and_then(|core| core.Settings())
-                .and_then(|settings| settings.cast::<ICoreWebView2Settings3>())
-                .and_then(|settings| settings.SetAreBrowserAcceleratorKeysEnabled(false))
-        };
-        if let Err(err) = result {
-            eprintln!("WebView2 のキー操作を止められませんでした: {err}");
-        }
-    });
-    if let Err(err) = result {
-        eprintln!("WebView2 のキー操作を止められませんでした: {err}");
-    }
+    with_controller(
+        win,
+        "WebView2 のキー操作を止められませんでした",
+        |controller| unsafe {
+            controller
+                .CoreWebView2()?
+                .Settings()?
+                .cast::<ICoreWebView2Settings3>()?
+                .SetAreBrowserAcceleratorKeysEnabled(false)
+        },
+    );
 }
 
 /// ウィンドウをディスプレイの作業領域の中央に置く。

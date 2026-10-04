@@ -50,8 +50,7 @@ pub fn run() {
             }
 
             let handle = app.handle();
-            windows::apply_theme(handle);
-            windows::setup_monitor(handle);
+            windows::create_monitor(handle)?;
             tray::create(handle)?;
             sampler::start(handle, source());
             Ok(())
