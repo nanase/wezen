@@ -3,6 +3,7 @@
 //! 性能カウンターの `\PhysicalDisk` は、登録が壊れていると引けない。
 //! ドライブに直接問い合わせれば、その影響を受けない。開くときに読み書きの権限は求めないので、管理者でなくても使える。
 
+use super::rate::{keyed_delta, Rate};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
@@ -40,7 +41,7 @@ type Totals = HashMap<u32, (u64, u64)>;
 pub struct Disk {
     drives: Vec<Drive>,
     scanned: Option<Instant>,
-    last: Option<(Instant, Totals)>,
+    rate: Rate<Totals>,
 }
 
 fn open(number: u32) -> Option<Drive> {
@@ -83,19 +84,6 @@ fn query(drive: &Drive) -> Option<(u64, u64)> {
     ))
 }
 
-/// 前回と今回の両方にあるドライブだけで、増えた量を足す。累計が減ったドライブは数えない。
-fn delta(prev: &Totals, now: &Totals) -> (u64, u64) {
-    now.iter().fold((0, 0), |(r, w), (number, (rd, wr))| {
-        match prev.get(number) {
-            Some((prd, pwr)) => (
-                r + rd.checked_sub(*prd).unwrap_or(0),
-                w + wr.checked_sub(*pwr).unwrap_or(0),
-            ),
-            None => (r, w),
-        }
-    })
-}
-
 impl Disk {
     /// (読み取り, 書き込み) を B/s で返す。
     pub fn sample(&mut self) -> Option<(f64, f64)> {
@@ -111,25 +99,7 @@ impl Disk {
         if now.is_empty() {
             return None;
         }
-        let at = Instant::now();
-        let (prev_at, prev) = self.last.replace((at, now.clone()))?;
-        let secs = at.duration_since(prev_at).as_secs_f64();
-        if secs <= 0.0 {
-            return None;
-        }
-        let (r, w) = delta(&prev, &now);
-        Some((r as f64 / secs, w as f64 / secs))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn drives_seen_twice_are_added() {
-        let prev = HashMap::from([(0, (1_000, 500)), (1, (10, 10))]);
-        let now = HashMap::from([(0, (1_600, 900)), (1, (15, 10)), (2, (99, 99))]);
-        assert_eq!(delta(&prev, &now), (605, 400));
+        self.rate
+            .update(now, |prev, now| Some(keyed_delta(prev, now)))
     }
 }

@@ -16,6 +16,7 @@ mod io;
 mod memory;
 mod net;
 mod pdh;
+mod rate;
 
 use crate::config::Settings;
 use crate::sampler::{Sample, Source};

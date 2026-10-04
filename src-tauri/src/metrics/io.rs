@@ -3,7 +3,7 @@
 //! Process Explorer の I/O と同じ元データで、性能カウンターの `\System\File Read Bytes/sec` なども
 //! ここから作られる。性能カウンターは登録が壊れていると引けないので、元データを直接読む。
 
-use std::time::Instant;
+use super::rate::Rate;
 use windows_sys::Wdk::System::SystemInformation::{
     NtQuerySystemInformation, SystemPerformanceInformation,
 };
@@ -20,7 +20,7 @@ struct Totals {
 
 #[derive(Default)]
 pub struct Io {
-    last: Option<(Instant, Totals)>,
+    rate: Rate<Totals>,
 }
 
 fn read() -> Option<Totals> {
@@ -47,7 +47,7 @@ fn read() -> Option<Totals> {
 }
 
 /// (読み取り + その他, 書き込み) の増えた量。累計が戻っていれば None。
-fn delta(prev: Totals, now: Totals) -> Option<(u64, u64)> {
+fn delta(prev: &Totals, now: &Totals) -> Option<(u64, u64)> {
     let read = now.read.checked_sub(prev.read)?;
     let other = now.other.checked_sub(prev.other)?;
     let write = now.write.checked_sub(prev.write)?;
@@ -57,15 +57,7 @@ fn delta(prev: Totals, now: Totals) -> Option<(u64, u64)> {
 impl Io {
     /// (R+O, W) を B/s で返す。
     pub fn sample(&mut self) -> Option<(f64, f64)> {
-        let now = read()?;
-        let at = Instant::now();
-        let (prev_at, prev) = self.last.replace((at, now))?;
-        let secs = at.duration_since(prev_at).as_secs_f64();
-        if secs <= 0.0 {
-            return None;
-        }
-        let (ro, w) = delta(prev, now)?;
-        Some((ro as f64 / secs, w as f64 / secs))
+        self.rate.update(read()?, delta)
     }
 }
 
@@ -85,7 +77,7 @@ mod tests {
             write: 90,
             other: 30,
         };
-        assert_eq!(delta(prev, now), Some((320, 40)));
-        assert_eq!(delta(now, prev), None);
+        assert_eq!(delta(&prev, &now), Some((320, 40)));
+        assert_eq!(delta(&now, &prev), None);
     }
 }

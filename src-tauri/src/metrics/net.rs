@@ -3,8 +3,8 @@
 //! 物理アダプターだけを数える。VPN などの仮想アダプターを足すと、同じ通信を 2 回数えるため。
 //! フィルター層（同じアダプターに重ねて見える層）とループバックも除く。
 
+use super::rate::{keyed_delta, Rate};
 use std::collections::HashMap;
-use std::time::Instant;
 use windows_sys::Win32::NetworkManagement::IpHelper::{
     FreeMibTable, GetIfTable2, IF_TYPE_SOFTWARE_LOOPBACK, MIB_IF_ROW2, MIB_IF_TABLE2,
 };
@@ -19,7 +19,7 @@ type Totals = HashMap<u64, (u64, u64)>;
 
 #[derive(Default)]
 pub struct Net {
-    last: Option<(Instant, Totals)>,
+    rate: Rate<Totals>,
 }
 
 fn counted(row: &MIB_IF_ROW2) -> bool {
@@ -52,42 +52,10 @@ fn read() -> Option<Totals> {
     Some(map)
 }
 
-/// 前回と今回の両方にあるアダプターだけで、増えた量を足す。累計が減ったアダプターは数えない。
-fn delta(prev: &Totals, now: &Totals) -> (u64, u64) {
-    now.iter()
-        .fold((0, 0), |(r, s), (luid, (rx, tx))| match prev.get(luid) {
-            Some((prx, ptx)) => (
-                r + rx.checked_sub(*prx).unwrap_or(0),
-                s + tx.checked_sub(*ptx).unwrap_or(0),
-            ),
-            None => (r, s),
-        })
-}
-
 impl Net {
     /// (受信, 送信) を B/s で返す。
     pub fn sample(&mut self) -> Option<(f64, f64)> {
-        let now = read()?;
-        let at = Instant::now();
-        let (prev_at, prev) = self.last.replace((at, now.clone()))?;
-        let secs = at.duration_since(prev_at).as_secs_f64();
-        if secs <= 0.0 {
-            return None;
-        }
-        let (rx, tx) = delta(&prev, &now);
-        Some((rx as f64 / secs, tx as f64 / secs))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_adapters_seen_twice_are_counted() {
-        let prev = HashMap::from([(1, (100, 50)), (2, (1_000, 1_000))]);
-        let now = HashMap::from([(1, (160, 80)), (2, (10, 1_200)), (3, (9_999, 9_999))]);
-        // 2 の受信は累計が戻ったので数えない。3 は今回から現れたので数えない
-        assert_eq!(delta(&prev, &now), (60, 230));
+        self.rate
+            .update(read()?, |prev, now| Some(keyed_delta(prev, now)))
     }
 }
